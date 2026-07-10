@@ -2,7 +2,7 @@
 import re
 from typing import List, Dict, Any, NamedTuple
 import tiktoken
-from settings import settings
+from app.core.config import settings
 
 
 class DocumentSection(NamedTuple):

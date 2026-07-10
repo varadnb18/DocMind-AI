@@ -2,14 +2,14 @@
 import google.generativeai as genai
 import numpy as np
 from typing import List, Union
-from settings import settings
+from app.core.config import settings
 
 
 class EmbeddingManager:
     def __init__(self):
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = "models/embedding-001"  # Gemini embedding model
-        self.dimension = 768  # Gemini embedding dimension
+        self.model = "models/gemini-embedding-001"  # Gemini embedding model
+        self.dimension = 3072  # Gemini embedding dimension is 3072
 
     def generate_embeddings(self, texts: Union[str, List[str]]) -> np.ndarray:
         """Generate embeddings using Google Gemini API"""

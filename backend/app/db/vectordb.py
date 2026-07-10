@@ -4,13 +4,14 @@ import numpy as np
 import pickle
 import os
 from typing import List, Tuple, Optional, Dict, Any
-from settings import settings
+from app.core.config import settings
 
 
 class FAISSManager:
-    def __init__(self, dimension: int):
+    def __init__(self, dimension: int, user_id: int):
         self.dimension = dimension
-        self.index_path = settings.FAISS_INDEX_PATH
+        self.user_id = user_id
+        self.index_path = f"{settings.FAISS_INDEX_PATH}_{user_id}"
         self.metadata_path = f"{self.index_path}.metadata"
         self.index = None
         self.metadata = []
