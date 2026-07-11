@@ -33,7 +33,7 @@ async def health_check():
 # --- AUTH ROUTES ---
 
 @router.post("/auth/register")
-async def register(user: UserCreate):
+def register(user: UserCreate):
     existing_user = auth_db.get_user_by_username(user.username)
     if existing_user:
         raise HTTPException(status_code=400, detail="Username already registered")
@@ -43,7 +43,7 @@ async def register(user: UserCreate):
     return {"message": "User created successfully", "user_id": user_id}
 
 @router.post("/auth/login", response_model=Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = auth_db.get_user_by_username(form_data.username)
     if not user:
         raise HTTPException(status_code=400, detail="Incorrect username or password")
@@ -69,12 +69,12 @@ async def upload_document(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/documents", response_model=List[DocumentResponse])
-async def list_documents(current_user_id: int = Depends(get_current_user)):
+def list_documents(current_user_id: int = Depends(get_current_user)):
     docs = document_service.get_all_documents(current_user_id)
     return docs
 
 @router.delete("/documents/{doc_id}")
-async def delete_document(doc_id: int, current_user_id: int = Depends(get_current_user)):
+def delete_document(doc_id: int, current_user_id: int = Depends(get_current_user)):
     return document_service.delete_document(doc_id, current_user_id)
 
 @router.post("/query", response_model=QueryResponse)

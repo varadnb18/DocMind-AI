@@ -1,6 +1,8 @@
 import logging
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from psycopg2 import pool
+from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
 import json
 import numpy as np
@@ -13,15 +15,25 @@ class PostgresManager:
     def __init__(self):
         self.postgres_url = settings.POSTGRES_URL
         logger.info("Initializing PostgresManager with URL")
-        self.init_tables()
-
-    def get_connection(self):
-        conn = psycopg2.connect(
-            self.postgres_url,
+        self.pool = pool.ThreadedConnectionPool(
+            minconn=1,
+            maxconn=20,
+            dsn=self.postgres_url,
             client_encoding='utf8'
         )
-        conn.set_client_encoding('UTF8')
-        return conn
+        self.init_tables()
+
+    @contextmanager
+    def get_connection(self):
+        conn = self.pool.getconn()
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            self.pool.putconn(conn)
 
     def _convert_numpy_types(self, obj):
         if isinstance(obj, np.integer):
