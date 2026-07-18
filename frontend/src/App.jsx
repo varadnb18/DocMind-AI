@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
@@ -41,6 +42,7 @@ function App() {
   return (
     <Router>
       <AuthProvider>
+        <Toaster position="top-center" />
         <AppRoutes />
       </AuthProvider>
     </Router>
