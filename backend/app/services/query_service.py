@@ -21,23 +21,38 @@ class QueryService:
             # 1. Embed Query
             query_embedding = self.embedding_manager.generate_query_embedding(query)
 
-            # 2. Search FAISS
+            # 2. Search FAISS (request more in case some docs were deleted)
             vector_db = self._get_vector_db(user_id)
-            scores, vector_ids = vector_db.search(query_embedding, k=top_k)
+            scores, vector_ids = vector_db.search(query_embedding, k=top_k * 4)
 
             if not vector_ids or vector_ids[0] == -1:
                 return {"error": "No relevant documents found"}
 
             # 3. Retrieve Chunks
             valid_vector_ids = [vid for vid in vector_ids if vid != -1]
-            chunks = self.postgres_db.get_chunks_by_vector_ids(valid_vector_ids, user_id)
+            chunks_from_db = self.postgres_db.get_chunks_by_vector_ids(valid_vector_ids, user_id)
 
-            if not chunks:
-                return {"error": "No matching document chunks found"}
+            if not chunks_from_db:
+                return {"error": "No matching document chunks found in database (they may have been deleted). Please upload your document again."}
+
+            # Map chunks back to their FAISS scores and sort by score
+            chunk_map = {chunk['vector_id']: chunk for chunk in chunks_from_db}
+            
+            valid_chunks = []
+            valid_scores = []
+            for vid, score in zip(valid_vector_ids, scores):
+                if vid in chunk_map:
+                    valid_chunks.append(chunk_map[vid])
+                    valid_scores.append(score)
+                    if len(valid_chunks) == top_k:
+                        break
+            
+            if not valid_chunks:
+                return {"error": "No valid chunks found after filtering."}
 
             # 4. Context Preparation
             context_parts = []
-            for chunk, score in zip(chunks[:top_k], scores[:len(chunks)]):
+            for chunk, score in zip(valid_chunks, valid_scores):
                 context_parts.append(
                     f"Source: {chunk['filename']}\n"
                     f"Content: {chunk['content']}\n"
