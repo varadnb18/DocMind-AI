@@ -83,7 +83,12 @@ async def query_document(
     current_user_id: int = Depends(get_current_user)
 ):
     try:
-        result = query_service.process_query(request.query, current_user_id, request.top_k)
+        result = query_service.process_query(
+            request.query, 
+            current_user_id, 
+            request.top_k, 
+            request.document_id
+        )
         if "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
         return result

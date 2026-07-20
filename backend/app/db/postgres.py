@@ -191,19 +191,27 @@ class PostgresManager:
             logger.error("Failed to store enhanced chunks: %s", e)
             raise
 
-    def get_chunks_by_vector_ids(self, vector_ids: List[int], user_id: int) -> List[Dict[str, Any]]:
-        """Retrieve chunks only if they belong to the specified user"""
+    def get_chunks_by_vector_ids(self, vector_ids: List[int], user_id: int, document_id: int = None) -> List[Dict[str, Any]]:
+        """Retrieve chunks only if they belong to the specified user (and optionally document)"""
         try:
             clean_vector_ids = [int(vid) for vid in vector_ids]
             with self.get_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute("""
+                    query = """
                         SELECT dc.*, d.filename, d.file_type
                         FROM document_chunks dc
                         JOIN documents d ON dc.document_id = d.id
                         WHERE dc.vector_id = ANY(%s) AND d.user_id = %s
-                        ORDER BY dc.vector_id
-                    """, (clean_vector_ids, user_id))
+                    """
+                    params = [clean_vector_ids, user_id]
+                    
+                    if document_id is not None:
+                        query += " AND dc.document_id = %s"
+                        params.append(document_id)
+                        
+                    query += " ORDER BY dc.vector_id"
+                    
+                    cur.execute(query, tuple(params))
                     rows = [dict(row) for row in cur.fetchall()]
             return rows
         except Exception as e:

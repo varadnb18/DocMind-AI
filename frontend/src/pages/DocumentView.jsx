@@ -28,7 +28,8 @@ export default function DocumentView() {
     try {
       const response = await axios.post(`${API_URL}/query`, {
         query: userMessage,
-        top_k: 5
+        top_k: 5,
+        document_id: parseInt(id)
       });
       
       setChat(prev => [...prev, { 

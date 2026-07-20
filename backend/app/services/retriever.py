@@ -21,6 +21,7 @@ class CustomFAISSRetriever(BaseRetriever):
     embedding_manager: Any = Field(description="The EmbeddingManager instance")
     user_id: int = Field(description="The user ID to restrict search to")
     k: int = Field(default=5, description="Number of documents to return")
+    document_id: Any = Field(default=None, description="Optional document ID to restrict search to")
 
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
@@ -31,15 +32,16 @@ class CustomFAISSRetriever(BaseRetriever):
         # 1. Embed Query
         query_embedding = self.embedding_manager.generate_query_embedding(query)
 
-        # 2. Search FAISS (request more in case some docs were deleted)
-        scores, vector_ids = self.vector_db.search(query_embedding, k=self.k * 4)
+        # 2. Search FAISS (request more if filtering by a specific document to ensure we find its chunks)
+        search_k = self.k * 20 if self.document_id else self.k * 4
+        scores, vector_ids = self.vector_db.search(query_embedding, k=search_k)
 
         if not vector_ids or vector_ids[0] == -1:
             return []
 
-        # 3. Retrieve Chunks from Postgres
+        # 3. Retrieve Chunks from Postgres (filters by user_id and optionally document_id)
         valid_vector_ids = [vid for vid in vector_ids if vid != -1]
-        chunks_from_db = self.postgres_db.get_chunks_by_vector_ids(valid_vector_ids, self.user_id)
+        chunks_from_db = self.postgres_db.get_chunks_by_vector_ids(valid_vector_ids, self.user_id, self.document_id)
 
         if not chunks_from_db:
             return []

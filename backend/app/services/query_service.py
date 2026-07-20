@@ -41,8 +41,8 @@ class QueryService:
         self.postgres_db.update_chunk_vector_ids(updates)
         logger.info(f"FAISS rebuild complete for user {user_id}: {len(new_ids)} vectors")
 
-    def process_query(self, query: str, user_id: int, top_k: int = 5) -> Dict[str, Any]:
-        logger.info(f"Processing query: {query} for user {user_id}")
+    def process_query(self, query: str, user_id: int, top_k: int = 5, document_id: int = None) -> Dict[str, Any]:
+        logger.info(f"Processing query: {query} for user {user_id}, document {document_id}")
         try:
             # 1. Initialize Custom LangChain Retriever
             vector_db = self._get_vector_db(user_id)
@@ -51,7 +51,8 @@ class QueryService:
                 postgres_db=self.postgres_db,
                 embedding_manager=self.embedding_manager,
                 user_id=user_id,
-                k=top_k
+                k=top_k,
+                document_id=document_id
             )
 
             # 2. Retrieve documents (this handles FAISS and Postgres lookup internally)

@@ -58,6 +58,44 @@ flowchart TD
     QueryService -- "13. JSON Response" --> UI
 ```
 
+### RAG Data Processing Flow
+Here is the detailed flow of how a document is processed and queried using our custom LangChain integration:
+
+```text
+PDF / DOCX
+ │
+PyPDF2 / python-docx
+ │
+ ▼
+RecursiveCharacterTextSplitter (LangChain)
+ │
+ ▼
+Chunks
+ │
+ ▼
+GoogleGenerativeAIEmbeddings (LangChain)
+ │
+ ▼
+FAISS (Vector Database)
+ │
+ ▼
+CustomFAISSRetriever (LangChain BaseRetriever)
+ │
+ ├── search FAISS
+ ├── get IDs
+ ├── fetch docs from PostgreSQL Backup
+ └── return LangChain Documents
+ │
+ ▼
+ChatPromptTemplate (LangChain)
+ │
+ ▼
+ChatGroq / ChatGoogleGenerativeAI / ChatOpenAI (LangChain)
+ │
+ ▼
+LLM Response
+```
+
 ### Components:
 *   **Frontend**: Built with React, Vite, and Tailwind CSS. Uses `axios` with interceptors to automatically attach JWT bearer tokens to all backend requests.
 *   **Backend**: Built with FastAPI and powered by **LangChain**. Handles file parsing, intelligent chunking, and LLM orchestration.
@@ -130,6 +168,7 @@ npm run dev
 Because this is a multi-user platform, data leakage is prevented via:
 1.  **Row-level filtering**: Every Postgres SQL query enforces `WHERE user_id = %s`.
 2.  **Physical Vector Isolation**: FAISS does not have built-in row-level security, so we instantiate completely separate `faiss_index_{user_id}` files on the disk for each user. A user querying their data only loads their personal FAISS index into memory.
+3.  **Document-Level Isolation**: When querying a specific document in the frontend, the custom LangChain Retriever dynamically expands the FAISS search depth and then strictly filters the fetched chunks through PostgreSQL using `document_id`. This ensures answers are generated *strictly* from the active document without leaking context from other documents owned by the same user.
 
 ## 🤝 For Beginners
 If you are learning from this project, start by exploring the following files:

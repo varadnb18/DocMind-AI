@@ -22,9 +22,15 @@ dist/
 .DS_Store
 
 # Virtual environments
+.venv/
+.venv-*/
 venv/
 env/
 ENV/
+
+# Local Data / DB
+backend/data/
+data/
 
 # Jupyter
 .ipynb_checkpoints/

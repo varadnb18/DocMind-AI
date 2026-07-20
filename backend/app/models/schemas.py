@@ -12,6 +12,7 @@ class DocumentResponse(BaseModel):
 class QueryRequest(BaseModel):
     query: str
     top_k: int = 5
+    document_id: Optional[int] = None
 
 class MultipleQueryRequest(BaseModel):
     queries: List[str]
