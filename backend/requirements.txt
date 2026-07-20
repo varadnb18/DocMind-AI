@@ -35,3 +35,10 @@ python-multipart==0.0.6
 bcrypt==3.2.2
 passlib[bcrypt]>=1.7.4
 pyjwt>=2.8.0
+
+# LangChain
+langchain>=0.1.13
+langchain-text-splitters>=0.0.1
+langchain-groq>=0.1.2
+langchain-google-genai>=1.0.1
+langchain-openai>=0.1.1

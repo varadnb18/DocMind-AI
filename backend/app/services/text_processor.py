@@ -2,6 +2,7 @@
 import re
 from typing import List, Dict, Any, NamedTuple
 import tiktoken
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from app.core.config import settings
 
 
@@ -18,8 +19,17 @@ class TextProcessor:
         self.chunk_overlap = settings.CHUNK_OVERLAP
         try:
             self.tokenizer = tiktoken.get_encoding("cl100k_base")
+            self.text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+                encoding_name="cl100k_base",
+                chunk_size=self.chunk_size,
+                chunk_overlap=self.chunk_overlap,
+            )
         except:
             self.tokenizer = None
+            self.text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=self.chunk_size * 4, # Fallback approx 4 chars per token
+                chunk_overlap=self.chunk_overlap * 4,
+            )
 
     def preprocess_text(self, text: str) -> str:
         """Clean and preprocess text"""
@@ -30,50 +40,22 @@ class TextProcessor:
         return text.strip()
 
     def chunk_text(self, text: str, metadata: Dict[str, Any] = None) -> List[Dict[str, Any]]:
-        """Split text into chunks with overlap"""
+        """Split text into chunks with overlap using LangChain"""
         if not text.strip():
             return []
 
+        langchain_chunks = self.text_splitter.split_text(text)
+        
         chunks = []
-        sentences = self._split_into_sentences(text)
-
-        current_chunk = ""
-        current_length = 0
-
-        for sentence in sentences:
-            sentence_length = self._get_token_count(sentence)
-
-            if current_length + sentence_length > self.chunk_size and current_chunk:
-                # Create chunk
-                chunk_data = {
-                    'content': current_chunk.strip(),
-                    'metadata': {
-                        **(metadata or {}),
-                        'token_count': current_length,
-                        'chunk_type': 'text'
-                    }
-                }
-                chunks.append(chunk_data)
-
-                # Start new chunk with overlap
-                overlap_text = self._get_overlap_text(current_chunk)
-                current_chunk = overlap_text + " " + sentence
-                current_length = self._get_token_count(current_chunk)
-            else:
-                current_chunk += " " + sentence if current_chunk else sentence
-                current_length += sentence_length
-
-        # Add the last chunk
-        if current_chunk.strip():
-            chunk_data = {
-                'content': current_chunk.strip(),
+        for chunk in langchain_chunks:
+            chunks.append({
+                'content': chunk,
                 'metadata': {
                     **(metadata or {}),
-                    'token_count': current_length,
+                    'token_count': self._get_token_count(chunk),
                     'chunk_type': 'text'
                 }
-            }
-            chunks.append(chunk_data)
+            })
 
         return chunks
 
@@ -194,12 +176,6 @@ class TextProcessor:
         # Ensure score is between 0 and 1
         return min(max(score, 0.0), 1.0)
 
-    def _split_into_sentences(self, text: str) -> List[str]:
-        """Split text into sentences"""
-        # Simple sentence splitting - can be improved with more sophisticated methods
-        sentences = re.split(r'(?<=[.!?])\s+', text)
-        return [s.strip() for s in sentences if s.strip()]
-
     def _get_token_count(self, text: str) -> int:
         """Get approximate token count"""
         if self.tokenizer:
@@ -207,9 +183,3 @@ class TextProcessor:
         else:
             # Fallback: approximate 4 characters per token
             return len(text) // 4
-
-    def _get_overlap_text(self, text: str) -> str:
-        """Get overlap text from the end of current chunk"""
-        words = text.split()
-        overlap_words = words[-self.chunk_overlap // 10:]  # Approximate word overlap
-        return " ".join(overlap_words)

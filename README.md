@@ -5,9 +5,9 @@ DocMind AI is a full-stack Retrieval-Augmented Generation (RAG) application that
 ## 🌟 Features
 
 *   **Multi-User Authentication**: Secure JWT-based login and registration. Each user has isolated data and vector indexes.
-*   **Intelligent Document Processing**: Automatically extracts text, chunks it logically, and stores it for vector search.
-*   **High-Performance Vector Search**: Uses FAISS to perform ultra-fast similarity searches over document embeddings.
-*   **Generative Q&A**: Uses Google's Gemini models to generate accurate, context-aware answers based strictly on the uploaded document contents.
+*   **Intelligent Document Processing**: Uses LangChain's `RecursiveCharacterTextSplitter` to automatically chunk text logically for vector search.
+*   **High-Performance Vector Search**: Uses FAISS for ultra-fast similarity search, backed by PostgreSQL to ensure vector persistence across cloud restarts (like Render).
+*   **Generative Q&A with Multi-LLM Fallback**: Uses LangChain to orchestrate LLM calls with a resilient fallback mechanism (Groq Llama 3 -> Google Gemini -> OpenAI GPT-3.5) to guarantee an answer based strictly on uploaded documents.
 *   **Modern UI**: A responsive, beautiful React frontend styled with Tailwind CSS.
 
 ---
@@ -27,9 +27,9 @@ flowchart TD
         API[API Router]
         Auth[JWT Authentication]
         DocService[Document Service]
-        QueryService[Query Service]
-        EmbedMgr[Embedding Manager - Gemini]
-        LLM[LLM Service - Gemini]
+        QueryService[Query Service + LangChain Retriever]
+        EmbedMgr[LangChain Embeddings]
+        LLM[LangChain Chat Models]
     end
 
     subgraph Storage [Data Storage]
@@ -60,10 +60,10 @@ flowchart TD
 
 ### Components:
 *   **Frontend**: Built with React, Vite, and Tailwind CSS. Uses `axios` with interceptors to automatically attach JWT bearer tokens to all backend requests.
-*   **Backend**: Built with FastAPI. Handles file parsing (PDF/DOCX), chunking, and orchestration.
-*   **PostgreSQL**: A relational database storing `users`, `documents`, and `document_chunks`. Every row is tied to a specific `user_id`.
-*   **FAISS**: An in-memory vector database built by Meta. For multi-user isolation, the application saves a unique physical file per user (e.g., `faiss_index_1`).
-*   **Google Gemini API**: Used for both converting text into numerical vectors (`gemini-embedding-001`) and generating the final human-readable answers (`gemini-1.5-pro` & `gemini-1.5-flash`).
+*   **Backend**: Built with FastAPI and powered by **LangChain**. Handles file parsing, intelligent chunking, and LLM orchestration.
+*   **PostgreSQL**: A relational database storing `users`, `documents`, and `document_chunks`. It also stores raw byte embeddings as a **persistent backup** to recreate vector indices after cloud server restarts.
+*   **FAISS**: An in-memory vector database built by Meta. Wrapped in a custom LangChain `BaseRetriever`.
+*   **Multi-LLM Fallback**: Uses LangChain to seamlessly switch between **Groq (Llama-3)**, **Google Gemini**, and **OpenAI** APIs for embeddings and chat completions.
 
 ---
 
@@ -93,8 +93,10 @@ pip install -r requirements.txt
 Create a `.env` file inside the `backend` folder:
 ```env
 DATABASE_URL=postgresql://postgres:password@localhost/dbname
-GEMINI_API_KEY=your_gemini_api_key_here
 SECRET_KEY=your_random_secret_jwt_key
+GEMINI_API_KEY=your_gemini_api_key_here
+GROQ_API_KEY=your_groq_api_key_here
+OPENAI_API_KEY=your_openai_api_key_here
 ```
 
 Run the backend server:
