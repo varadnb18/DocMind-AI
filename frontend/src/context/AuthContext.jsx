@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -8,6 +8,16 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [isAuthenticated, setIsAuthenticated] = useState(!!token);
   const navigate = useNavigate();
+
+  // Use ref to avoid stale closure in axios interceptor
+  const logoutRef = useRef();
+
+  const logout = useCallback(() => {
+    setToken(null);
+    navigate('/login');
+  }, [navigate]);
+
+  logoutRef.current = logout;
 
   // Setup axios interceptor to attach token to all requests
   useEffect(() => {
@@ -28,7 +38,7 @@ export const AuthProvider = ({ children }) => {
       (response) => response,
       (error) => {
         if (error.response && error.response.status === 401) {
-          logout();
+          logoutRef.current();
         }
         return Promise.reject(error);
       }
@@ -53,16 +63,12 @@ export const AuthProvider = ({ children }) => {
     await login(username, password); // auto-login after register
   };
 
-  const logout = () => {
-    setToken(null);
-    navigate('/login');
-  };
-
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, register, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, token, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
 export const useAuth = () => useContext(AuthContext);
+

@@ -90,8 +90,15 @@ class PostgresManager:
                             importance_score FLOAT,
                             metadata JSONB,
                             vector_id INTEGER,
+                            embedding BYTEA,
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         )
+                    """)
+
+                    # Add embedding column if it doesn't exist (for existing databases)
+                    cur.execute("""
+                        ALTER TABLE document_chunks 
+                        ADD COLUMN IF NOT EXISTS embedding BYTEA
                     """)
 
                     # Create query_results table with user_id
@@ -164,9 +171,11 @@ class PostgresManager:
                 with conn.cursor() as cur:
                     for i, chunk in enumerate(chunks):
                         clean_chunk = self._convert_numpy_types(chunk)
+                        # Get embedding bytes if available
+                        embedding_bytes = chunk.get('embedding_bytes')
                         cur.execute("""
-                            INSERT INTO document_chunks (document_id, chunk_index, content, category, importance_score, metadata, vector_id)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            INSERT INTO document_chunks (document_id, chunk_index, content, category, importance_score, metadata, vector_id, embedding)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         """, (
                             int(document_id),
                             int(i),
@@ -174,7 +183,8 @@ class PostgresManager:
                             str(clean_chunk.get('category', 'general')),
                             float(clean_chunk.get('importance_score', 0.5)),
                             json.dumps(clean_chunk.get('metadata', {})),
-                            int(clean_chunk.get('vector_id')) if clean_chunk.get('vector_id') is not None else None
+                            int(clean_chunk.get('vector_id')) if clean_chunk.get('vector_id') is not None else None,
+                            psycopg2.Binary(embedding_bytes) if embedding_bytes is not None else None
                         ))
                     conn.commit()
         except Exception as e:
@@ -247,4 +257,53 @@ class PostgresManager:
                     conn.commit()
         except Exception as e:
             logger.error("Failed to delete document: %s", e)
+            raise
+
+    # --- FAISS Rebuild Methods ---
+
+    def get_all_user_ids(self) -> List[int]:
+        """Get all user IDs that have uploaded documents"""
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT DISTINCT user_id FROM documents")
+                    return [row[0] for row in cur.fetchall()]
+        except Exception as e:
+            logger.error(f"Failed to get user IDs: {e}")
+            return []
+
+    def get_chunks_with_embeddings(self, user_id: int) -> List[Dict[str, Any]]:
+        """Load all chunks that have stored embeddings for FAISS rebuilding"""
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT dc.id, dc.document_id, dc.chunk_index, dc.content,
+                               dc.category, dc.importance_score, dc.metadata,
+                               dc.vector_id, dc.embedding, d.filename
+                        FROM document_chunks dc
+                        JOIN documents d ON dc.document_id = d.id
+                        WHERE d.user_id = %s AND dc.embedding IS NOT NULL
+                        ORDER BY dc.id
+                    """, (user_id,))
+                    return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            logger.error(f"Failed to load embeddings for user {user_id}: {e}")
+            return []
+
+    def update_chunk_vector_ids(self, updates: List[tuple]):
+        """Batch update vector_ids after FAISS rebuild. updates = [(chunk_id, new_vector_id), ...]"""
+        if not updates:
+            return
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    for chunk_id, new_vector_id in updates:
+                        cur.execute(
+                            "UPDATE document_chunks SET vector_id = %s WHERE id = %s",
+                            (int(new_vector_id), int(chunk_id))
+                        )
+                    conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to update vector IDs: {e}")
             raise

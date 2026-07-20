@@ -171,6 +171,14 @@ class FAISSManager:
             return self.metadata[vector_id]
         return {}
 
+    def rebuild_from_stored(self, embeddings: np.ndarray, metadata_list: List[Dict[str, Any]]) -> List[int]:
+        """Rebuild FAISS index from embeddings stored in PostgreSQL.
+        Called on startup when Render has wiped the local FAISS files."""
+        self._create_new_index()
+        if len(embeddings) == 0:
+            return []
+        return self.add_vectors_with_categories(embeddings, metadata_list)
+
     def get_total_vectors(self) -> int:
         """Get total number of vectors in the index"""
         return self.index.ntotal if self.index else 0
