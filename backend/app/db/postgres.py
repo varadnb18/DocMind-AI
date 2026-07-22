@@ -62,7 +62,7 @@ class PostgresManager:
                         )
                     """)
 
-                    # Create documents table with user_id
+                    # Create documents table with user_id & summary
                     cur.execute("""
                         CREATE TABLE IF NOT EXISTS documents (
                             id SERIAL PRIMARY KEY,
@@ -75,8 +75,15 @@ class PostgresManager:
                             processing_time FLOAT,
                             upload_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                             processed BOOLEAN DEFAULT FALSE,
+                            summary TEXT,
                             metadata JSONB
                         )
+                    """)
+
+                    # Add summary column if it doesn't exist (for existing databases)
+                    cur.execute("""
+                        ALTER TABLE documents 
+                        ADD COLUMN IF NOT EXISTS summary TEXT
                     """)
 
                     # Create document_chunks table
@@ -249,6 +256,29 @@ class PostgresManager:
         except Exception as e:
             logger.error("Failed to mark document processed: %s", e)
             raise
+
+    def update_document_summary(self, document_id: int, summary: str):
+        """Update pre-computed summary for a document"""
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE documents SET summary = %s WHERE id = %s", (str(summary), int(document_id)))
+                    conn.commit()
+        except Exception as e:
+            logger.error("Failed to update document summary: %s", e)
+            raise
+
+    def get_document_summary(self, document_id: int, user_id: int) -> Optional[str]:
+        """Fetch pre-computed summary for a specific document and user"""
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT summary FROM documents WHERE id = %s AND user_id = %s", (int(document_id), int(user_id)))
+                    row = cur.fetchone()
+                    return row[0] if row else None
+        except Exception as e:
+            logger.error("Failed to fetch document summary: %s", e)
+            return None
 
     def store_query_result(self, user_id: int, query: str, results: List[Dict[str, Any]], document_id: Optional[int] = None):
         try:

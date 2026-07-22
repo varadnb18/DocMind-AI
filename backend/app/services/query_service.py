@@ -44,6 +44,26 @@ class QueryService:
     def process_query(self, query: str, user_id: int, top_k: int = 5, document_id: int = None) -> Dict[str, Any]:
         logger.info(f"Processing query: {query} for user {user_id}, document {document_id}")
         try:
+            # 0. Check for Pre-Computed Summary Intent
+            query_lower = query.lower().strip()
+            summary_keywords = {"summarize", "summary", "overview", "what is this document about", "give me a summary"}
+            if document_id and any(kw in query_lower for kw in summary_keywords):
+                cached_summary = self.postgres_db.get_document_summary(document_id, user_id)
+                if cached_summary:
+                    logger.info(f"Serving pre-computed summary for document {document_id}")
+                    payload = {
+                        "answer": cached_summary,
+                        "provider_used": "Pre-Computed Summary (PostgreSQL)",
+                        "sources": []
+                    }
+                    self.postgres_db.store_query_result(user_id, query, payload, document_id)
+                    return {
+                        "query": query,
+                        "answer": cached_summary,
+                        "provider_used": "Pre-Computed Summary (PostgreSQL)",
+                        "sources": []
+                    }
+
             # 1. Initialize Custom LangChain Retriever
             vector_db = self._get_vector_db(user_id)
             retriever = CustomFAISSRetriever(
@@ -97,10 +117,18 @@ class QueryService:
         chat_messages = []
         for item in raw_history:
             query = item.get("query")
-            results = item.get("results") or {}
-            answer = results.get("answer", "")
-            provider = results.get("provider_used", "")
-            sources = results.get("sources", [])
+            results = item.get("results")
+            
+            answer = ""
+            provider = ""
+            sources = []
+
+            if isinstance(results, dict):
+                answer = results.get("answer", "")
+                provider = results.get("provider_used", "")
+                sources = results.get("sources", [])
+            elif isinstance(results, list):
+                sources = results
             
             chat_messages.append({"role": "user", "content": query})
             if answer:

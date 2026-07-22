@@ -106,9 +106,14 @@ class DocumentService:
             self.postgres_db.store_enhanced_chunks(doc_id, enhanced_chunks)
             self.postgres_db.mark_document_processed(doc_id)
 
+            # Generate and store pre-computed document summary
+            summary = llm_service.generate_summary_from_sections(sections)
+            self.postgres_db.update_document_summary(doc_id, summary)
+
             return {
                 "document_id": doc_id,
                 "chunks_created": len(sections),
+                "summary": summary,
                 "status": "success"
             }
         except Exception as e:

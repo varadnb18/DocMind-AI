@@ -31,11 +31,62 @@ class LLMService:
             max_tokens=1024
         )
 
-        # Create LangChain PromptTemplate
+        # Create LangChain PromptTemplate for Q&A
         self.prompt_template = ChatPromptTemplate.from_messages([
             ("system", "You are a helpful AI assistant answering questions based on context. Please provide a comprehensive answer based only on the provided context. If the context doesn't contain enough information to answer the question, please state that clearly."),
             ("user", "Context:\n{context}\n\nQuestion: {question}")
         ])
+
+        # Create LangChain PromptTemplate for Document Summarization
+        self.summary_prompt_template = ChatPromptTemplate.from_messages([
+            ("system", "You are an expert document summarizer. Create a clear, high-level overview of the provided document text. Format your response into 2 informative paragraphs followed by 3 key takeaway bullet points."),
+            ("user", "Document Text:\n{text}")
+        ])
+
+    def generate_summary_from_sections(self, sections: List[Any]) -> str:
+        """
+        Generates an executive document summary from key sections or sampled text chunks during upload.
+        """
+        if not sections:
+            return "No document text available to summarize."
+
+        # Prioritize key structural sections
+        key_categories = {'introduction', 'conclusion', 'summary', 'results', 'methodology'}
+        chosen_sections = [s for s in sections if getattr(s, 'category', 'general') in key_categories]
+
+        # Fallback to even sampling if key sections aren't enough
+        if len(chosen_sections) < 3:
+            step = max(1, len(sections) // 8)
+            chosen_sections = sections[::step][:8]
+
+        sample_text = "\n\n".join([s.content for s in chosen_sections])[:8000]
+        messages = self.summary_prompt_template.format_messages(text=sample_text)
+
+        # 1. Try Groq
+        try:
+            response = self.groq_chat.invoke(messages)
+            if response and response.content:
+                return response.content.strip()
+        except Exception as e:
+            logger.warning(f"Groq failed for summary: {e}")
+
+        # 2. Try Gemini
+        try:
+            response = self.gemini_chat.invoke(messages)
+            if response and response.content:
+                return response.content.strip()
+        except Exception as e:
+            logger.warning(f"Gemini failed for summary: {e}")
+
+        # 3. Try OpenAI
+        try:
+            response = self.openai_chat.invoke(messages)
+            if response and response.content:
+                return response.content.strip()
+        except Exception as e:
+            logger.error(f"OpenAI failed for summary: {e}")
+
+        return "Summary could not be generated at this time."
 
     def generate_answer(self, query: str, documents: List[Document]) -> Tuple[str, str]:
         """

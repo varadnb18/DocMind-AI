@@ -81,6 +81,13 @@ def delete_document(doc_id: int, current_user_id: int = Depends(get_current_user
 def get_document_history(doc_id: int, current_user_id: int = Depends(get_current_user)):
     return query_service.get_document_history(current_user_id, doc_id)
 
+@router.get("/documents/{doc_id}/summary")
+def get_document_summary(doc_id: int, current_user_id: int = Depends(get_current_user)):
+    summary = auth_db.get_document_summary(doc_id, current_user_id)
+    if not summary:
+        raise HTTPException(status_code=404, detail="Summary not found for this document")
+    return {"document_id": doc_id, "summary": summary}
+
 @router.post("/query", response_model=QueryResponse)
 async def query_document(
     request: QueryRequest, 
