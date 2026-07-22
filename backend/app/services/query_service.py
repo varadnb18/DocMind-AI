@@ -74,8 +74,13 @@ class QueryService:
                 for doc in docs
             ]
             
-            # Optionally store query result
-            self.postgres_db.store_query_result(user_id, query, sources)
+            # Store query result with answer, provider, sources & document_id
+            payload = {
+                "answer": answer,
+                "provider_used": provider,
+                "sources": sources
+            }
+            self.postgres_db.store_query_result(user_id, query, payload, document_id)
 
             return {
                 "query": query,
@@ -86,6 +91,26 @@ class QueryService:
         except Exception as e:
             logger.error(f"Query processing failed: {e}")
             raise
+
+    def get_document_history(self, user_id: int, document_id: int) -> List[Dict[str, Any]]:
+        raw_history = self.postgres_db.get_query_history(user_id, document_id)
+        chat_messages = []
+        for item in raw_history:
+            query = item.get("query")
+            results = item.get("results") or {}
+            answer = results.get("answer", "")
+            provider = results.get("provider_used", "")
+            sources = results.get("sources", [])
+            
+            chat_messages.append({"role": "user", "content": query})
+            if answer:
+                chat_messages.append({
+                    "role": "bot",
+                    "content": answer,
+                    "provider": provider,
+                    "sources": sources
+                })
+        return chat_messages
 
     def process_multiple_queries(self, queries: List[str], user_id: int, top_k: int = 5) -> List[Dict[str, Any]]:
         results = []

@@ -77,6 +77,10 @@ def list_documents(current_user_id: int = Depends(get_current_user)):
 def delete_document(doc_id: int, current_user_id: int = Depends(get_current_user)):
     return document_service.delete_document(doc_id, current_user_id)
 
+@router.get("/documents/{doc_id}/history")
+def get_document_history(doc_id: int, current_user_id: int = Depends(get_current_user)):
+    return query_service.get_document_history(current_user_id, doc_id)
+
 @router.post("/query", response_model=QueryResponse)
 async def query_document(
     request: QueryRequest, 

@@ -101,15 +101,22 @@ class PostgresManager:
                         ADD COLUMN IF NOT EXISTS embedding BYTEA
                     """)
 
-                    # Create query_results table with user_id
+                    # Create query_results table with user_id & document_id
                     cur.execute("""
                         CREATE TABLE IF NOT EXISTS query_results (
                             id SERIAL PRIMARY KEY,
                             user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                            document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE,
                             query TEXT NOT NULL,
                             results JSONB,
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         )
+                    """)
+
+                    # Add document_id column if it doesn't exist (for existing databases)
+                    cur.execute("""
+                        ALTER TABLE query_results 
+                        ADD COLUMN IF NOT EXISTS document_id INTEGER REFERENCES documents(id) ON DELETE CASCADE
                     """)
 
                     conn.commit()
@@ -243,19 +250,35 @@ class PostgresManager:
             logger.error("Failed to mark document processed: %s", e)
             raise
 
-    def store_query_result(self, user_id: int, query: str, results: List[Dict[str, Any]]):
+    def store_query_result(self, user_id: int, query: str, results: List[Dict[str, Any]], document_id: Optional[int] = None):
         try:
             clean_results = self._convert_numpy_types(results)
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
-                        INSERT INTO query_results (user_id, query, results)
-                        VALUES (%s, %s, %s)
-                    """, (user_id, str(query), json.dumps(clean_results)))
+                        INSERT INTO query_results (user_id, document_id, query, results)
+                        VALUES (%s, %s, %s, %s)
+                    """, (user_id, document_id, str(query), json.dumps(clean_results)))
                     conn.commit()
         except Exception as e:
             logger.error("Failed to store query result: %s", e)
             raise
+
+    def get_query_history(self, user_id: int, document_id: int) -> List[Dict[str, Any]]:
+        """Fetch past queries and responses for a specific user and document"""
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        SELECT id, query, results, created_at
+                        FROM query_results
+                        WHERE user_id = %s AND document_id = %s
+                        ORDER BY created_at ASC
+                    """, (user_id, document_id))
+                    return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            logger.error("Failed to fetch query history: %s", e)
+            return []
 
     def delete_document(self, document_id: int, user_id: int):
         try:

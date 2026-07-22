@@ -13,6 +13,20 @@ export default function DocumentView() {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/documents/${id}/history`);
+        if (response.data && Array.isArray(response.data)) {
+          setChat(response.data);
+        }
+      } catch (error) {
+        console.error("Failed to load chat history:", error);
+      }
+    };
+    fetchHistory();
+  }, [id]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chat]);
 
