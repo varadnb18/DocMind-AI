@@ -39,7 +39,7 @@ class LLMService:
 
         # Create LangChain PromptTemplate for Document Summarization
         self.summary_prompt_template = ChatPromptTemplate.from_messages([
-            ("system", "You are an expert document summarizer. Create a clear, high-level overview of the provided document text. Format your response into 2 informative paragraphs followed by 3 key takeaway bullet points."),
+            ("system", "You are an expert document analyst. Provide a comprehensive, detailed, and thorough summary of the provided document text. Format your response with:\n1. An in-depth Executive Overview (2-3 detailed paragraphs)\n2. Key Technical / Structural Topics Covered\n3. 5 to 7 detailed Takeaway Bullet Points.\nEnsure the summary is rich in detail and covers the core substance of the text."),
             ("user", "Document Text:\n{text}")
         ])
 
@@ -51,15 +51,15 @@ class LLMService:
             return "No document text available to summarize."
 
         # Prioritize key structural sections
-        key_categories = {'introduction', 'conclusion', 'summary', 'results', 'methodology'}
+        key_categories = {'introduction', 'conclusion', 'summary', 'results', 'methodology', 'technical', 'discussion'}
         chosen_sections = [s for s in sections if getattr(s, 'category', 'general') in key_categories]
 
-        # Fallback to even sampling if key sections aren't enough
-        if len(chosen_sections) < 3:
-            step = max(1, len(sections) // 8)
-            chosen_sections = sections[::step][:8]
+        # Sample more chunks across the entire document
+        if len(chosen_sections) < 5:
+            step = max(1, len(sections) // 15)
+            chosen_sections = sections[::step][:15]
 
-        sample_text = "\n\n".join([s.content for s in chosen_sections])[:8000]
+        sample_text = "\n\n".join([s.content for s in chosen_sections])[:20000]
         messages = self.summary_prompt_template.format_messages(text=sample_text)
 
         # 1. Try Groq
