@@ -9,23 +9,15 @@ export default function DocumentView() {
   const { id } = useParams();
   const [query, setQuery] = useState('');
   const [chat, setChat] = useState([]);
-  const [summary, setSummary] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [historyRes, summaryRes] = await Promise.allSettled([
-          axios.get(`${API_URL}/documents/${id}/history`),
-          axios.get(`${API_URL}/documents/${id}/summary`)
-        ]);
-
-        if (historyRes.status === 'fulfilled' && Array.isArray(historyRes.value.data)) {
-          setChat(historyRes.value.data);
-        }
-        if (summaryRes.status === 'fulfilled' && summaryRes.value.data?.summary) {
-          setSummary(summaryRes.value.data.summary);
+        const historyRes = await axios.get(`${API_URL}/documents/${id}/history`);
+        if (Array.isArray(historyRes.data)) {
+          setChat(historyRes.data);
         }
       } catch (error) {
         console.error("Failed to load document data:", error);
@@ -79,18 +71,8 @@ export default function DocumentView() {
 
       {/* Chat Area */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        {summary && (
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-5 text-sm text-gray-700 shadow-sm">
-            <div className="flex items-center gap-2 font-semibold text-blue-900 mb-2">
-              <Sparkles className="w-4 h-4 text-blue-600" />
-              <span>Document Overview</span>
-              <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-normal ml-auto">Pre-Computed</span>
-            </div>
-            <p className="whitespace-pre-wrap leading-relaxed text-gray-700">{summary}</p>
-          </div>
-        )}
 
-        {chat.length === 0 && !summary ? (
+        {chat.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-4">
             <Sparkles className="w-12 h-12 text-blue-300" />
             <p className="text-lg font-medium">Ask anything about this document!</p>
