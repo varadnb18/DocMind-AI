@@ -2,7 +2,6 @@
 import PyPDF2
 from docx import Document
 import io
-from typing import List, Dict, Any, Tuple
 from abc import ABC, abstractmethod
 
 
@@ -20,9 +19,15 @@ class PDFProcessor(DocumentProcessor):
     def extract_text(self, file_content: bytes) -> str:
         pdf_file = io.BytesIO(file_content)
         pdf_reader = PyPDF2.PdfReader(pdf_file)
+        
+        if len(pdf_reader.pages) > 50:
+            raise ValueError("PDF has too many pages. Maximum allowed is 50 pages to prevent server overload.")
+            
         text = ""
         for page in pdf_reader.pages:
-            text += page.extract_text() + "\n"
+            extracted = page.extract_text()
+            if extracted:
+                text += extracted + "\n"
         return text
 
     def get_file_type(self) -> str:

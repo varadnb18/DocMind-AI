@@ -2,7 +2,6 @@ import logging
 import numpy as np
 from typing import Dict, Any, List
 from fastapi import UploadFile, HTTPException
-import time
 from app.services.document_processor import DocumentProcessorFactory
 from app.services.text_processor import TextProcessor
 from app.services.embedding_manager import EmbeddingManager
@@ -48,13 +47,24 @@ class DocumentService:
 
     async def process_upload(self, file: UploadFile, user_id: int) -> Dict[str, Any]:
         logger.info(f"Processing uploaded file: {file.filename} for user {user_id}")
+        
+        MAX_FILE_SIZE = 10 * 1024 * 1024 # 10 MB limit
+        if file.size and file.size > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail="File too large. Maximum size is 10MB.")
+            
         try:
             content = await file.read()
+            if len(content) > MAX_FILE_SIZE:
+                raise HTTPException(status_code=400, detail="File too large. Maximum size is 10MB.")
+                
             processor = DocumentProcessorFactory.get_processor(file.filename)
-            text = processor.extract_text(content)
+            
+            # Offload heavy text extraction to a thread to prevent blocking the event loop
+            import asyncio
+            text = await asyncio.to_thread(processor.extract_text, content)
 
             if not text.strip():
-                raise HTTPException(status_code=400, detail="No text content extracted")
+                raise HTTPException(status_code=400, detail="No text content extracted. Ensure it is not a scanned image.")
 
             # Store Document
             doc_id = self.postgres_db.store_document(
@@ -116,6 +126,10 @@ class DocumentService:
                 "summary": summary,
                 "status": "success"
             }
+        except HTTPException:
+            raise
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
             logger.exception("Upload processing failed")
             raise HTTPException(status_code=500, detail=str(e))
