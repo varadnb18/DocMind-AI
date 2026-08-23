@@ -14,7 +14,7 @@ class LLMService:
         # Initialize LangChain Chat Models
         self.groq_chat = ChatGroq(
             api_key=settings.GROQ_API_KEY,
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-120b",
             temperature=0.2,
             max_tokens=1024
         )
@@ -110,7 +110,7 @@ class LLMService:
             response = self.groq_chat.invoke(messages)
             if response and response.content:
                 logger.info("Successfully generated answer using Groq.")
-                return response.content.strip(), "Groq (llama-3.3-70b)"
+                return response.content.strip(), "Groq (gpt-oss-120b)"
         except Exception as e:
             logger.warning(f"Groq API failed: {e}")
 
