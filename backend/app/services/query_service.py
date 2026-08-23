@@ -79,7 +79,16 @@ class QueryService:
             docs = retriever.invoke(query)
 
             if not docs:
-                return {"error": "No relevant documents found. Please upload your document again if it was deleted."}
+                answer = "I could not find any relevant information in the document to answer your query."
+                provider = "System"
+                payload = {"answer": answer, "provider_used": provider, "sources": []}
+                self.postgres_db.store_query_result(user_id, query, payload, document_id)
+                return {
+                    "query": query,
+                    "answer": answer,
+                    "provider_used": provider,
+                    "sources": []
+                }
 
             # 3. Generate Answer using LangChain Chat Models
             answer, provider = llm_service.generate_answer(query, docs)

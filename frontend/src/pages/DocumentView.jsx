@@ -54,7 +54,8 @@ export default function DocumentView() {
       }]);
     } catch (error) {
       console.error(error);
-      setChat(prev => [...prev, { role: 'bot', content: "Sorry, I encountered an error while processing your query.", error: true }]);
+      const errorMessage = error.response?.data?.detail || "Sorry, I encountered an error while processing your query.";
+      setChat(prev => [...prev, { role: 'bot', content: errorMessage, error: true }]);
     } finally {
       setLoading(false);
     }
